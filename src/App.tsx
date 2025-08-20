@@ -564,29 +564,33 @@ const Modal = ({ children, onClose, title = '' }: ModalProps) => {
   return (
     <div
       ref={modalRef}
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 backdrop-blur-sm p-2 sm:p-4 transition-opacity duration-300 overflow-y-auto ${isOpen ? 'opacity-100' : 'opacity-0'}`}
       onClick={(e) => e.target === e.currentTarget && handleClose()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       <div
-        className={`w-full max-w-xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+        className={`w-full max-w-xs sm:max-w-lg md:max-w-2xl lg:max-w-4xl bg-white rounded-lg sm:rounded-2xl shadow-2xl transform transition-all duration-300 my-4 sm:my-8 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
       >
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold" id="modal-title">{title}</h3>
-            <button
-              onClick={handleClose}
-              className="text-gray-500 hover:text-gray-800 transition p-2 rounded-full hover:bg-gray-100"
-              aria-label="Close modal"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+        <div className="max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 rounded-t-lg sm:rounded-t-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg sm:text-xl font-bold truncate pr-4" id="modal-title">{title}</h3>
+              <button
+                onClick={handleClose}
+                className="text-gray-500 hover:text-gray-800 transition p-1 sm:p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
+                aria-label="Close modal"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
-          {children}
+          <div className="p-4 sm:p-6">
+            {children}
+          </div>
         </div>
       </div>
     </div>
@@ -946,7 +950,7 @@ const Header = () => {
 
 // --- Portals (Views) ---
 const PatientPortal = () => {
-  const { currentUser, updatePatientData, setToast: contextSetToast } = useMedLifeContext();
+  const { currentUser, updatePatientData } = useMedLifeContext();
   
   // Guard clause to prevent rendering before currentUser is set
   const [isEditing, setIsEditing] = useState(false);
@@ -971,10 +975,19 @@ const PatientPortal = () => {
 
   const saveChanges = () => {
     if (currentUser && 'id' in currentUser) {
-      const updatedUser = { ...currentUser, ...formData, emergencyContacts };
+      const updatedUser = { 
+        ...currentUser, 
+        ...formData,
+        photoUrl: formData.photoUrl || currentUser.photoUrl, // Ensure photoUrl is properly saved
+        emergencyContacts: emergencyContacts,
+        lastUpdated: new Date().toISOString().split('T')[0] // Update the last modified date
+      };
+      
       updatePatientData(updatedUser);
       setIsEditing(false);
-      contextSetToast({ message: 'Profile updated successfully!', type: 'success' });
+      
+      // Show success message
+      console.log('Profile updated successfully with image:', updatedUser.photoUrl);
     }
   };
 
@@ -1136,134 +1149,168 @@ const PatientPortal = () => {
     {/* Edit Profile Modal */}
     {isEditing && (
       <Modal onClose={() => setIsEditing(false)} title="Edit Profile">
-        <div className="space-y-4">
+        <div className="space-y-4 sm:space-y-6">
+          {/* Profile Photo Section */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Profile Photo</label>
-            <div className="mt-1 flex items-center space-x-4">
-              {currentUser?.photoUrl ? (
-                <img src={currentUser.photoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Profile Photo</label>
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+              {formData.photoUrl || currentUser?.photoUrl ? (
+                <img src={formData.photoUrl || currentUser?.photoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xl font-bold">
+                <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
                   {currentUser?.name.charAt(0)}
                 </div>
               )}
-              <input
-                type="file"
-                accept=".png,.jpg,.jpeg"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      setFormData(prev => ({ ...prev, photoUrl: event.target?.result as string }));
+              <div className="flex-1 min-w-0">
+                <input
+                  type="file"
+                  accept=".png,.jpg,.jpeg"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      // Create a unique filename with timestamp
+                      const timestamp = Date.now();
+                      const extension = file.name.split('.').pop();
+                      const filename = `patient_${currentUser?.id}_${timestamp}.${extension}`;
+                      
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const result = event.target?.result as string;
+                        // In a real application, you would upload this to your server
+                        // For now, we'll use the data URL and simulate saving to local folder
+                        const imagePath = `/images/patients/${filename}`;
+                        
+                        // Update form data with the new image
+                        setFormData(prev => ({ ...prev, photoUrl: result }));
+                        
+                        // Simulate saving to local folder (in real app, this would be a server call)
+                        console.log(`Image would be saved to: public${imagePath}`);
                       };
                       reader.readAsDataURL(file);
                     }
                   }}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  className="block w-full text-xs sm:text-sm text-gray-500 file:mr-2 sm:file:mr-4 file:py-1 sm:file:py-2 file:px-2 sm:file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
+                <p className="text-xs text-gray-500 mt-1">Accepted formats: PNG, JPG, JPEG</p>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Accepted formats: PNG, JPG, JPEG</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input
-                  type="text"
-                  value={formData.name ?? ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Age</label>
-                <input
-                  type="number"
-                  value={formData.age ?? ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
-                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone ?? ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input
-                  type="email"
-                  value={formData.email ?? ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700">Address</label>
-                <textarea
-                  value={formData.address ?? ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                  rows={3}
-                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Emergency Contacts</label>
-              <div className="space-y-4">
-                {[0, 1, 2].map((index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">Contact {index + 1}</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700">Name</label>
-                        <input
-                          type="text"
-                          value={emergencyContacts[index]?.name || ''}
-                          onChange={(e) => handleEmergencyContactChange(index, 'name', e.target.value)}
-                          placeholder="Contact name"
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700">Relation</label>
-                        <input
-                          type="text"
-                          value={emergencyContacts[index]?.relation || ''}
-                          onChange={(e) => handleEmergencyContactChange(index, 'relation', e.target.value)}
-                          placeholder="Relationship"
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700">Phone</label>
-                        <input
-                          type="tel"
-                          value={emergencyContacts[index]?.phone || ''}
-                          onChange={(e) => handleEmergencyContactChange(index, 'phone', e.target.value)}
-                          placeholder="Phone number"
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="flex justify-end space-x-4">
-              <Button onClick={() => setIsEditing(false)} variant="secondary">Cancel</Button>
-              <Button onClick={saveChanges} variant="primary">Save Changes</Button>
             </div>
           </div>
-        </Modal>
-      )}
+
+          {/* Basic Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input
+                type="text"
+                value={formData.name ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="block w-full p-2 sm:p-3 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+              <input
+                type="number"
+                value={formData.age ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
+                className="block w-full p-2 sm:p-3 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                value={formData.phone ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                className="block w-full p-2 sm:p-3 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={formData.email ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                className="block w-full p-2 sm:p-3 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <textarea
+                value={formData.address ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                rows={3}
+                className="block w-full p-2 sm:p-3 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Emergency Contacts */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">Emergency Contacts</label>
+            <div className="space-y-3 sm:space-y-4">
+              {[0, 1, 2].map((index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Contact {index + 1}</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={emergencyContacts[index]?.name || ''}
+                        onChange={(e) => handleEmergencyContactChange(index, 'name', e.target.value)}
+                        placeholder="Contact name"
+                        className="block w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Relation</label>
+                      <input
+                        type="text"
+                        value={emergencyContacts[index]?.relation || ''}
+                        onChange={(e) => handleEmergencyContactChange(index, 'relation', e.target.value)}
+                        placeholder="Relationship"
+                        className="block w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Phone</label>
+                      <input
+                        type="tel"
+                        value={emergencyContacts[index]?.phone || ''}
+                        onChange={(e) => handleEmergencyContactChange(index, 'phone', e.target.value)}
+                        placeholder="Phone number"
+                        className="block w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4 pt-4 border-t border-gray-200">
+            <button 
+              type="button"
+              onClick={() => setIsEditing(false)} 
+              className="w-full sm:w-auto px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                saveChanges();
+              }} 
+              className="w-full sm:w-auto px-4 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </Modal>
+    )}
     </div>
   );
 };
@@ -1459,7 +1506,7 @@ const DoctorPortal = () => {
 const AdminPortal = () => {
   const { currentUser, patients, doctors, updatePatient, updateDoctor, deletePatient, deleteDoctor } = useMedLifeContext();
 
-  const [view, setView] = useState('patients');
+  const [view, setView] = useState<'patients' | 'doctors'>('patients');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<{ item: Patient | Doctor; type: string } | null>(null);
@@ -1541,7 +1588,7 @@ const AdminPortal = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NID</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{view === 'patients' ? 'NID' : 'ID'}</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {view === 'patients' ? 'Age' : 'Specialty'}
@@ -1588,8 +1635,8 @@ const AdminPortal = () => {
   );
 };
 
-const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void; onCancel: () => void }) => {
-  const { addPatient, addDoctor, currentUser } = useMedLifeContext();
+const AddModal = ({ type, onSave, onCancel }: { type: 'patients' | 'doctors', onSave: () => void, onCancel: () => void }) => {
+  const { addPatient, addDoctor, currentUser, patients, doctors } = useMedLifeContext();
   const [formData, setFormData] = useState<{
     name: string;
     password: string;
@@ -1603,10 +1650,36 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
     name: '', 
     password: '' 
   });
+  const [nidError, setNidError] = useState<string>('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear NID error when user types
+    if (name === 'nid') {
+      setNidError('');
+    }
+  };
+
+  const validateNID = (nid: string): boolean => {
+    if (!nid.trim()) {
+      setNidError('NID is required');
+      return false;
+    }
+
+    // Check if NID already exists in patients
+    const existsInPatients = patients.some(patient => patient.nid === nid.trim());
+    
+    // Check if NID already exists in doctors
+    const existsInDoctors = doctors.some(doctor => doctor.nid === nid.trim());
+
+    if (existsInPatients || existsInDoctors) {
+      setNidError('This NID is already in use. Please use a different NID.');
+      return false;
+    }
+
+    return true;
   };
 
   const handleSave = () => {
@@ -1614,10 +1687,16 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
       console.error('Name and Password are required.');
       return;
     }
+
+    // Validate NID
+    const nidToUse = formData.nid || `${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    if (formData.nid && !validateNID(formData.nid)) {
+      return;
+    }
     if (type === 'patients') {
       const newPatient: Patient = {
         id: `P${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-        nid: formData.nid || `${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+        nid: nidToUse,
         name: formData.name,
         password: formData.password,
         age: parseInt(formData.age || '0'),
@@ -1642,7 +1721,7 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
     } else {
       const newDoctor: Doctor = {
         id: `D${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-        nid: formData.nid || `${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+        nid: nidToUse,
         name: formData.name,
         password: formData.password,
         hospital: currentUser?.hospital || 'General Hospital',
@@ -1680,7 +1759,17 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
         </div>
         <div className="col-span-1 md:col-span-2">
           <label className="block text-sm font-medium text-gray-700">National ID (NID)</label>
-          <input type="text" name="nid" onChange={handleChange} placeholder="National ID" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required />
+          <input 
+            type="text" 
+            name="nid" 
+            onChange={handleChange} 
+            placeholder="National ID" 
+            className={`mt-1 block w-full p-2 border rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 ${nidError ? 'border-red-500' : 'border-gray-300'}`} 
+            required 
+          />
+          {nidError && (
+            <p className="mt-1 text-sm text-red-600">{nidError}</p>
+          )}
         </div>
         <div className="col-span-1 md:col-span-2">
           <label className="block text-sm font-medium text-gray-700">Password</label>
@@ -2147,6 +2236,11 @@ const EmergencyPortal = () => {
                     type="text"
                     value={nid}
                     onChange={(e) => setNid(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
+                    }}
                     placeholder="Enter Patient NID"
                     className="w-full p-3 border-2 border-red-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg"
                   />
