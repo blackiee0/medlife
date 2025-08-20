@@ -1,13 +1,10 @@
 import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import AdminLogin from './components/Portals/AdminLogin';
-
-
-
 
 // --- Type Definitions ---
 interface Patient {
   id: string;
+  nid: string;
   password: string;
   name: string;
   age: number;
@@ -36,6 +33,7 @@ interface Patient {
   abnormalities: string[];
   lastUpdated: string;
   emergencyContacts: EmergencyContact[];
+  fingerprintId?: string; // Added for fingerprint scanning
 }
 
 interface EmergencyContact {
@@ -47,6 +45,7 @@ interface EmergencyContact {
 
 interface Doctor {
   id: string;
+  nid: string;
   password: string;
   name: string;
   hospital: string;
@@ -73,9 +72,11 @@ interface Doctor {
 
 interface Admin {
   id: string;
+  nid: string;
   password: string;
   name: string;
   hospital: string;
+  photoUrl?: string;
 }
 
 interface Toast {
@@ -90,6 +91,7 @@ const initialData = {
   patients: [
     {
       id: 'P001',
+      nid: '1234567890',
       password: 'patient',
       name: 'Alice Johnson',
       age: 45,
@@ -156,6 +158,7 @@ const initialData = {
     },
     {
       id: 'P002',
+      nid: '0987654321',
       password: 'patient',
       name: 'Charlie Davis',
       age: 62,
@@ -204,6 +207,7 @@ const initialData = {
   doctors: [
     {
       id: 'D001',
+      nid: '1111111111',
       password: 'doctor',
       name: 'Dr. Emily White',
       hospital: 'General Hospital',
@@ -229,6 +233,7 @@ const initialData = {
     },
     {
       id: 'D002',
+      nid: '2222222222',
       password: 'doctor',
       name: 'Dr. Mark Green',
       hospital: 'City Medical Center',
@@ -256,12 +261,14 @@ const initialData = {
   admin: [
     {
       id: 'A001',
+      nid: '9999999999',
       password: 'admin',
       name: 'Admin General',
       hospital: 'General Hospital',
     },
     {
       id: 'A002',
+      nid: '8888888888',
       password: 'admin',
       name: 'Admin City',
       hospital: 'City Medical Center',
@@ -307,20 +314,30 @@ const MedLifeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    // Clear localStorage to ensure fresh data
-    localStorage.removeItem('medlifePatients');
-    localStorage.removeItem('medlifeDoctors');
-    localStorage.removeItem('medlifeAdmins');
+    // Load data from localStorage or use initial data
+    const storedPatients = localStorage.getItem('medlifePatients');
+    const storedDoctors = localStorage.getItem('medlifeDoctors');
+    const storedAdmins = localStorage.getItem('medlifeAdmins');
     
-    // Set initial data
-    setPatients(initialData.patients);
-    setDoctors(initialData.doctors);
-    setAdmins(initialData.admin);
+    if (storedPatients && storedDoctors && storedAdmins) {
+      setPatients(JSON.parse(storedPatients));
+      setDoctors(JSON.parse(storedDoctors));
+      setAdmins(JSON.parse(storedAdmins));
+    } else {
+      // Use initial data and save to localStorage
+      setPatients(initialData.patients);
+      setDoctors(initialData.doctors);
+      setAdmins(initialData.admin);
+      
+      localStorage.setItem('medlifePatients', JSON.stringify(initialData.patients));
+      localStorage.setItem('medlifeDoctors', JSON.stringify(initialData.doctors));
+      localStorage.setItem('medlifeAdmins', JSON.stringify(initialData.admin));
+    }
     
-    console.log('Initial data loaded:', {
-      patients: initialData.patients.length,
-      doctors: initialData.doctors.length,
-      admins: initialData.admin.length
+    console.log('Data loaded:', {
+      patients: storedPatients ? JSON.parse(storedPatients).length : initialData.patients.length,
+      doctors: storedDoctors ? JSON.parse(storedDoctors).length : initialData.doctors.length,
+      admins: storedAdmins ? JSON.parse(storedAdmins).length : initialData.admin.length
     });
   }, []);
 
@@ -337,12 +354,15 @@ const MedLifeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
     
     let user: Patient | Doctor | Admin | null = null;
     if (userRole === 'patient') {
-      user = patients.find(p => p.id === id && p.password === password) || null;
+      // For patients, use NID as login identifier
+      user = patients.find(p => p.nid === id && p.password === password) || null;
       console.log('Patient search result:', user);
     } else if (userRole === 'doctor') {
+      // For doctors, use doctor ID as login identifier
       user = doctors.find(d => d.id === id && d.password === password) || null;
       console.log('Doctor search result:', user);
     } else if (userRole === 'admin') {
+      // For admins, use admin ID as login identifier
       user = admins.find(a => a.id === id && a.password === password) || null;
       console.log('Admin search result:', user);
     }
@@ -365,33 +385,49 @@ const MedLifeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
   
   
   const updatePatientData = (updatedUser: Patient) => {
-    setPatients(patients.map(p => p.id === updatedUser.id ? updatedUser : p));
+    const updatedPatients = patients.map(p => p.id === updatedUser.id ? updatedUser : p);
+    setPatients(updatedPatients);
+    localStorage.setItem('medlifePatients', JSON.stringify(updatedPatients));
     setCurrentUser(updatedUser);
   };
   
   const updatePatient = (updatedPatient: Patient) => {
-    setPatients(patients.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+    const updatedPatients = patients.map(p => p.id === updatedPatient.id ? updatedPatient : p);
+    setPatients(updatedPatients);
+    localStorage.setItem('medlifePatients', JSON.stringify(updatedPatients));
   };
   
   const addPatient = (newPatient: Patient) => {
-    setPatients([...patients, newPatient]);
+    const updatedPatients = [...patients, newPatient];
+    setPatients(updatedPatients);
+    localStorage.setItem('medlifePatients', JSON.stringify(updatedPatients));
   };
   
   const updateDoctor = (updatedDoctor: Doctor) => {
-    setDoctors(doctors.map(d => d.id === updatedDoctor.id ? updatedDoctor : d));
+    const updatedDoctors = doctors.map(d => d.id === updatedDoctor.id ? updatedDoctor : d);
+    setDoctors(updatedDoctors);
+    localStorage.setItem('medlifeDoctors', JSON.stringify(updatedDoctors));
   };
 
   const addDoctor = (newDoctor: Doctor) => {
-    setDoctors([...doctors, newDoctor]);
+    const updatedDoctors = [...doctors, newDoctor];
+    setDoctors(updatedDoctors);
+    localStorage.setItem('medlifeDoctors', JSON.stringify(updatedDoctors));
   };
   
   const deletePatient = (id: string) => {
-    setPatients(patients.filter(p => p.id !== id));
+    const updatedPatients = patients.filter(p => p.id !== id);
+    setPatients(updatedPatients);
+    localStorage.setItem('medlifePatients', JSON.stringify(updatedPatients));
   };
   
   const deleteDoctor = (id: string) => {
-    setDoctors(doctors.filter(d => d.id !== id));
+    const updatedDoctors = doctors.filter(d => d.id !== id);
+    setDoctors(updatedDoctors);
+    localStorage.setItem('medlifeDoctors', JSON.stringify(updatedDoctors));
   };
+
+  const [, setToast] = useState<Toast | null>(null);
 
   const contextValue = {
     patients,
@@ -407,7 +443,7 @@ const MedLifeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
     addDoctor,
     deletePatient,
     deleteDoctor,
-    setToast: () => {},
+    setToast,
     confirmLogout,
   };
 
@@ -430,7 +466,7 @@ interface ButtonProps {
 }
 
 const Button = ({ children, onClick, variant = 'primary', className = '', type = 'button', disabled = false }: ButtonProps) => {
-  const baseClasses = 'w-full sm:w-auto font-semibold py-2 px-4 rounded-full transition duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:scale-100';
+  const baseClasses = 'w-full sm:w-auto font-semibold py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:scale-100 hover:shadow-lg active:shadow-sm';
   const variants = {
     primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500 active:bg-indigo-800',
     secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500 active:bg-gray-400',
@@ -480,6 +516,13 @@ const Modal = ({ children, onClose, title = '' }: ModalProps) => {
   const [isOpen, setIsOpen] = useState(true);
   const modalRef = useRef<HTMLDivElement>(null);
   
+  const handleClose = React.useCallback(() => {
+    setIsOpen(false);
+    setTimeout(() => {
+      onClose();
+    }, 300); // Match the transition duration
+  }, [onClose]);
+
   // Add escape key handler and focus trap
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -510,27 +553,13 @@ const Modal = ({ children, onClose, title = '' }: ModalProps) => {
       }
     };
 
-    // Set initial focus to first focusable element
-    const firstFocusable = modalRef.current?.querySelector(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    ) as HTMLElement;
-    if (firstFocusable) {
-      firstFocusable.focus();
-    }
-
+    document.addEventListener('keydown', handleEscape);
     document.addEventListener('keydown', handleTabKey);
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('keydown', handleTabKey);
     };
-  }, []);
-
-  const handleClose = () => {
-    setIsOpen(false);
-    setTimeout(() => {
-      onClose();
-    }, 300); // Match the transition duration
-  };
+  }, [handleClose]);
 
   return (
     <div
@@ -766,7 +795,9 @@ const NavigationControls = () => {
 // Update Header component
 const Header = () => {
   const { currentUser, role, confirmLogout } = useMedLifeContext();
+  const { language, toggleLanguage } = useContext(ThemeAndLanguageContext) || { language: 'en', toggleLanguage: () => {} };
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -780,22 +811,123 @@ const Header = () => {
   const cancelLogout = () => {
     setShowLogoutConfirm(false);
   };
+
+  const headerText = {
+    en: {
+      logout: "Logout",
+      language: "नेपाली",
+      menu: "Menu"
+    },
+    ne: {
+      logout: "लगआउट",
+      language: "English", 
+      menu: "मेनु"
+    }
+  };
+
+  const currentText = headerText[language as keyof typeof headerText] || headerText.en;
   
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-40 border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
-      <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <NavigationControls />
-          <Logo />
+    <header className="bg-white dark:bg-gray-800 shadow-lg sticky top-0 z-50 border-b border-gray-200 dark:border-gray-700 transition-all duration-300">
+      <div className="w-full px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
+        <div className="flex justify-between items-center w-full">
+          {/* Left side - Logo and Navigation */}
+          <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
+            <NavigationControls />
+            <Logo />
+          </div>
+
+          {/* Right side - Desktop */}
+          <div className="hidden md:flex items-center space-x-2 lg:space-x-4 flex-shrink-0">
+            {/* Language Toggle */}
+            <button
+              onClick={toggleLanguage}
+              className="px-2 lg:px-3 py-1.5 lg:py-2 text-xs lg:text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap"
+            >
+              {currentText.language}
+            </button>
+            
+            {currentUser && (
+              <>
+                <div className="flex items-center space-x-2 lg:space-x-3 min-w-0">
+                  {'photoUrl' in currentUser && currentUser.photoUrl ? (
+                    <img 
+                      src={currentUser.photoUrl} 
+                      alt={currentUser.name}
+                      className="w-6 h-6 lg:w-8 lg:h-8 rounded-full object-cover border-2 border-blue-500 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs lg:text-sm font-bold flex-shrink-0">
+                      {currentUser.name.charAt(0)}
+                    </div>
+                  )}
+                  <span className="text-xs lg:text-sm font-medium text-gray-700 dark:text-gray-300 truncate max-w-32 lg:max-w-48">
+                    {currentUser.name} ({role})
+                  </span>
+                </div>
+                <Button onClick={handleLogout} variant="secondary" className="py-1.5 lg:py-2 px-2 lg:px-4 text-xs lg:text-sm whitespace-nowrap">
+                  {currentText.logout}
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden flex-shrink-0">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+            >
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isMobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
-        {currentUser && (
-          <div className="flex items-center space-x-4">
-            <span className="text-sm dark:text-gray-300 hidden sm:inline transition-colors duration-300">
-              {currentUser.name} ({role})
-            </span>
-            <Button onClick={handleLogout} variant="secondary" className="py-1 px-3 text-sm">
-              Logout
-            </Button>
+
+        {/* Mobile menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden mt-3 sm:mt-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col space-y-2 sm:space-y-3 pt-3 sm:pt-4">
+              <button
+                onClick={toggleLanguage}
+                className="text-left px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                {currentText.language}
+              </button>
+              
+              {currentUser && (
+                <>
+                  <div className="flex items-center space-x-3 px-3 py-2">
+                    {'photoUrl' in currentUser && currentUser.photoUrl ? (
+                      <img 
+                        src={currentUser.photoUrl} 
+                        alt={currentUser.name}
+                        className="w-8 h-8 rounded-full object-cover border-2 border-blue-500 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        {currentUser.name.charAt(0)}
+                      </div>
+                    )}
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                      {currentUser.name} ({role})
+                    </span>
+                  </div>
+                  <Button 
+                    onClick={handleLogout} 
+                    variant="secondary" 
+                    className="mx-3 py-2 px-4 text-sm w-auto"
+                  >
+                    {currentText.logout}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -819,34 +951,64 @@ const PatientPortal = () => {
   // Guard clause to prevent rendering before currentUser is set
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Patient>>({});
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   
   // Guard clause to prevent rendering before currentUser is set
   if (!currentUser || !('reports' in currentUser)) {
     return <div>Loading...</div>;
   }
 
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+
+  const handleEmergencyContactChange = (index: number, field: keyof EmergencyContact, value: string) => {
+    const updatedContacts = [...emergencyContacts];
+    if (!updatedContacts[index]) {
+      updatedContacts[index] = { name: '', relation: '', phone: '', priority: index + 1 };
+    }
+    updatedContacts[index] = { ...updatedContacts[index], [field]: value };
+    setEmergencyContacts(updatedContacts);
   };
+
 
   const saveChanges = () => {
     if (currentUser && 'id' in currentUser) {
-      const updatedUser = { ...currentUser, ...formData };
+      const updatedUser = { ...currentUser, ...formData, emergencyContacts };
       updatePatientData(updatedUser);
       setIsEditing(false);
       contextSetToast({ message: 'Profile updated successfully!', type: 'success' });
     }
   };
 
+  const startEditing = () => {
+    // Initialize form data with current user data
+    setFormData({
+      name: currentUser.name || '',
+      age: currentUser.age || 0,
+      phone: currentUser.phone || '',
+      email: currentUser.email || '',
+      address: currentUser.address || '',
+      photoUrl: currentUser.photoUrl || ''
+    });
+    
+    const contacts = currentUser.emergencyContacts || [];
+    // Always ensure exactly 3 contacts
+    const fixedContacts = [
+      contacts[0] || { name: '', relation: '', phone: '', priority: 1 },
+      contacts[1] || { name: '', relation: '', phone: '', priority: 2 },
+      contacts[2] || { name: '', relation: '', phone: '', priority: 3 }
+    ];
+    setEmergencyContacts(fixedContacts);
+    setIsEditing(true);
+  };
+
   const recentReports = currentUser.reports.slice(-2); // Get the last two reports
 
   return (
-    <div className="p-4 sm:p-8 space-y-8">
-      {/* Breadcrumbs */}
-      <div className="text-sm text-gray-500 dark:text-gray-400">
-        <span>Home</span> / <span>Patient</span> / <span>{currentUser.name}</span>
-      </div>
+    <div className="min-h-screen overflow-y-auto">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
+        {/* Breadcrumbs */}
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          <span>Home</span> / <span>Patient</span> / <span className="truncate">{currentUser.name}</span>
+        </div>
       
       <Card className="flex flex-col md:flex-row items-center md:items-start space-y-4 md:space-y-0 md:space-x-8">
         {currentUser.photoUrl ? (
@@ -857,40 +1019,103 @@ const PatientPortal = () => {
           </div>
         )}
         <div className="flex-1 text-center md:text-left">
-          <h2 className="text-3xl font-bold text-gray-800">{currentUser.name}</h2>
-          <p className="text-gray-500 mt-1">Patient ID: <span className="font-mono text-indigo-600">{currentUser.id}</span></p>
-          <div className="mt-4 flex flex-wrap justify-center md:justify-start items-center space-x-4">
-            <span className="text-sm font-semibold bg-blue-100 text-blue-800 py-1 px-3 rounded-full">Age: {currentUser.age}</span>
-            <span className="text-sm font-semibold bg-red-100 text-red-800 py-1 px-3 rounded-full">Blood: {currentUser.bloodGroup}</span>
-            <span className="text-sm font-semibold bg-yellow-100 text-yellow-800 py-1 px-3 rounded-full">Allergies: {currentUser.allergies.join(', ') || 'None'}</span>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">{currentUser.name}</h2>
+          <p className="text-gray-500 mt-1">Patient NID: <span className="font-mono text-indigo-600">{currentUser.nid}</span></p>
+          <div className="mt-4 flex flex-wrap justify-center md:justify-start items-center gap-2 sm:gap-4">
+            <span className="text-xs sm:text-sm font-semibold bg-blue-100 text-blue-800 py-1 px-2 sm:px-3 rounded-full">Age: {currentUser.age}</span>
+            <span className="text-xs sm:text-sm font-semibold bg-red-100 text-red-800 py-1 px-2 sm:px-3 rounded-full">Blood: {currentUser.bloodGroup}</span>
+            <span className="text-xs sm:text-sm font-semibold bg-yellow-100 text-yellow-800 py-1 px-2 sm:px-3 rounded-full">Allergies: {currentUser.allergies.join(', ') || 'None'}</span>
           </div>
         </div>
       </Card>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="group">
-          <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        <Card className="group h-fit">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
             My Profile
           </h3>
-          <p className="text-gray-600 mb-2"><strong>Contact:</strong> {currentUser.emergencyContact}</p>
-          <p className="text-gray-600 mb-2"><strong>Address:</strong> {currentUser.address}</p>
-          <p className="text-gray-600"><strong>Chronic Diseases:</strong> {currentUser.chronicDiseases.join(', ') || 'None'}</p>
-          <Button onClick={() => setIsEditing(true)} variant="outline" className="mt-4 w-full">Edit Details</Button>
+          <div className="space-y-2 text-sm">
+            <p className="text-gray-600"><strong>Contact:</strong> {currentUser.emergencyContact}</p>
+            <p className="text-gray-600"><strong>Address:</strong> <span className="break-words">{currentUser.address}</span></p>
+            <p className="text-gray-600"><strong>Chronic Diseases:</strong> {currentUser.chronicDiseases.join(', ') || 'None'}</p>
+          </div>
+          <Button onClick={startEditing} variant="outline" className="mt-4 w-full text-sm">Edit Details</Button>
         </Card>
 
-        <Card className="group">
-          <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+        <Card className="group h-fit">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
             Recent Reports
           </h3>
-          <ul className="space-y-3">
-            {recentReports.length > 0 ? (
-              recentReports.map((report, index) => (
-                <li key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                  <div className="flex items-center">
-                    <span className="font-medium text-gray-800 truncate">{report.title}</span>
-                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+          <div className="max-h-64 overflow-y-auto">
+            <ul className="space-y-3">
+              {recentReports.length > 0 ? (
+                recentReports.map((report, index) => (
+                  <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50 p-3 rounded-lg gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-800 text-sm truncate">{report.title}</span>
+                        <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+                          report.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          report.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                    <Button onClick={() => window.open(report.url, '_blank')} variant="primary" className="py-1 px-3 text-xs sm:text-sm shrink-0">View</Button>
+                  </li>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No reports found.</p>
+              )}
+            </ul>
+          </div>
+        </Card>
+
+        <Card className="group h-fit">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notifications
+          </h3>
+          <div className="max-h-48 overflow-y-auto">
+            <ul className="space-y-3">
+              <li className="text-gray-700 text-sm">Your MRI report was added on 2023-04-10.</li>
+              <li className="text-gray-700 text-sm">Upcoming appointment with Dr. Emily White on Oct 25.</li>
+              <li className="text-gray-700 text-sm">Remember to renew your medication.</li>
+            </ul>
+          </div>
+        </Card>
+      </div>
+      
+      <Card className="group">
+        <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+          All Medical Reports
+        </h3>
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <input
+            type="text"
+            placeholder="Search reports..."
+            className="flex-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+          />
+          <select className="p-3 border border-gray-300 rounded-lg shadow-sm text-sm min-w-0 sm:min-w-[140px]">
+            <option>All Types</option>
+            <option>Blood Work</option>
+            <option>Scans</option>
+            <option>ECG</option>
+          </select>
+        </div>
+        <div className="max-h-96 overflow-y-auto">
+          <ul className="space-y-4">
+            {currentUser.reports.map((report, index) => (
+              <li key={index} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50 p-4 rounded-lg gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="font-medium text-gray-800 text-sm">{report.title}</span>
+                    <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
                       report.status === 'completed' ? 'bg-green-100 text-green-800' :
                       report.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-red-100 text-red-800'
@@ -898,112 +1123,140 @@ const PatientPortal = () => {
                       {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
                     </span>
                   </div>
-                  <Button onClick={() => window.open(report.url, '_blank')} variant="primary" className="py-1 px-3 text-sm">View</Button>
-                </li>
-              ))
-            ) : (
-              <p className="text-gray-500">No reports found.</p>
-            )}
-          </ul>
-        </Card>
-
-        <Card className="group">
-          <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            Notifications
-          </h3>
-          <ul className="space-y-3">
-            <li className="text-gray-700">Your MRI report was added on 2023-04-10.</li>
-            <li className="text-gray-700">Upcoming appointment with Dr. Emily White on Oct 25.</li>
-            <li className="text-gray-700">Remember to renew your medication.</li>
-          </ul>
-        </Card>
-      </div>
-      
-      <Card className="space-y-6 group">
-        <h3 className="text-2xl font-bold text-gray-800 flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
-          All Medical Reports
-        </h3>
-        <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
-          <input
-            type="text"
-            placeholder="Search reports..."
-            className="flex-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-          />
-          <select className="p-3 border border-gray-300 rounded-lg shadow-sm">
-            <option>All Types</option>
-            <option>Blood Work</option>
-            <option>Scans</option>
-            <option>ECG</option>
-          </select>
-        </div>
-        <ul className="space-y-4">
-          {currentUser.reports.map((report, index) => (
-            <li key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-              <div className="flex-1">
-                <div className="flex items-center">
-                  <span className="font-medium text-gray-800">{report.title}</span>
-                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                    report.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    report.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
-                  </span>
+                  <p className="text-xs sm:text-sm text-gray-500">{report.date} • {report.hospital}</p>
                 </div>
-                <p className="text-sm text-gray-500">{report.date} • {report.hospital}</p>
-              </div>
-              <Button onClick={() => window.open(report.url, '_blank')} variant="primary" className="py-1 px-3 text-sm">View</Button>
-            </li>
-          ))}
-        </ul>
+                <Button onClick={() => window.open(report.url, '_blank')} variant="primary" className="py-2 px-4 text-sm shrink-0">View</Button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </Card>
+    </div>
       
-      {/* Edit Profile Modal */}
-      {isEditing && (
-        <Modal onClose={() => setIsEditing(false)} title="Edit Profile">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
+    {/* Edit Profile Modal */}
+    {isEditing && (
+      <Modal onClose={() => setIsEditing(false)} title="Edit Profile">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Profile Photo</label>
+            <div className="mt-1 flex items-center space-x-4">
+              {currentUser?.photoUrl ? (
+                <img src={currentUser.photoUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xl font-bold">
+                  {currentUser?.name.charAt(0)}
+                </div>
+              )}
               <input
-                type="text"
-                name="name"
-                value={formData.name || currentUser.name}
-                onChange={handleEditChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-              />
+                type="file"
+                accept=".png,.jpg,.jpeg"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      setFormData(prev => ({ ...prev, photoUrl: event.target?.result as string }));
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Accepted formats: PNG, JPG, JPEG</p>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <input
+                  type="text"
+                  value={formData.name ?? ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Age</label>
+                <input
+                  type="number"
+                  value={formData.age ?? ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
+                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Phone</label>
+                <input
+                  type="tel"
+                  value={formData.phone ?? ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <input
+                  type="email"
+                  value={formData.email ?? ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Address</label>
+                <textarea
+                  value={formData.address ?? ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                  rows={3}
+                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700">Phone</label>
-              <input
-                type="text"
-                name="phone"
-                value={formData.phone || currentUser.phone}
-                onChange={handleEditChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-3">Emergency Contacts</label>
+              <div className="space-y-4">
+                {[0, 1, 2].map((index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Contact {index + 1}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700">Name</label>
+                        <input
+                          type="text"
+                          value={emergencyContacts[index]?.name || ''}
+                          onChange={(e) => handleEmergencyContactChange(index, 'name', e.target.value)}
+                          placeholder="Contact name"
+                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700">Relation</label>
+                        <input
+                          type="text"
+                          value={emergencyContacts[index]?.relation || ''}
+                          onChange={(e) => handleEmergencyContactChange(index, 'relation', e.target.value)}
+                          placeholder="Relationship"
+                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700">Phone</label>
+                        <input
+                          type="tel"
+                          value={emergencyContacts[index]?.phone || ''}
+                          onChange={(e) => handleEmergencyContactChange(index, 'phone', e.target.value)}
+                          placeholder="Phone number"
+                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email</label>
-              <input
-                type="text"
-                name="email"
-                value={formData.email || currentUser.email}
-                onChange={handleEditChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Address</label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address || currentUser.address}
-                onChange={handleEditChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+            
             <div className="flex justify-end space-x-4">
               <Button onClick={() => setIsEditing(false)} variant="secondary">Cancel</Button>
               <Button onClick={saveChanges} variant="primary">Save Changes</Button>
@@ -1038,11 +1291,30 @@ const DoctorPortal = () => {
       </div>
       
       <Card className="flex flex-col sm:flex-row items-center justify-between">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
-          Doctor Dashboard - {currentUser.name}
-        </h2>
-        <div className="text-sm text-gray-600">
-          {currentUser.specialty} • {currentUser.hospital}
+        <div className="flex items-center space-x-4">
+          {currentUser.photoUrl ? (
+            <img src={currentUser.photoUrl} alt={currentUser.name} className="w-16 h-16 rounded-full object-cover border-4 border-green-600" />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center text-white text-xl font-bold">
+              {currentUser.name.charAt(0)}
+            </div>
+          )}
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
+              {currentUser.name}
+            </h2>
+            <div className="text-sm text-gray-600">
+              {currentUser.specialty} • {currentUser.hospital}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              License: {currentUser.licenseNumber} • Experience: {currentUser.experience} years
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 sm:mt-0 text-right">
+          <div className="text-sm font-medium text-gray-700">Contact Information</div>
+          <div className="text-xs text-gray-500">{currentUser.phone}</div>
+          <div className="text-xs text-gray-500">{currentUser.email}</div>
         </div>
       </Card>
 
@@ -1114,7 +1386,23 @@ const DoctorPortal = () => {
                   <p><strong>Phone:</strong> {selectedPatient.phone}</p>
                   <p><strong>Email:</strong> {selectedPatient.email}</p>
                   <p><strong>Address:</strong> {selectedPatient.address}</p>
-                  <p><strong>Emergency Contact:</strong> {selectedPatient.emergencyContact} ({selectedPatient.emergencyContactRelation}) - {selectedPatient.emergencyContactPhone}</p>
+                  <div className="mt-3">
+                    <p><strong>Emergency Contacts:</strong></p>
+                    {selectedPatient.emergencyContacts && selectedPatient.emergencyContacts.length > 0 ? (
+                      <ul className="ml-4 mt-1 space-y-1">
+                        {selectedPatient.emergencyContacts
+                          .filter(contact => contact.name && contact.name.trim())
+                          .map((contact, index) => (
+                            <li key={index} className="text-sm">
+                              {contact.name} ({contact.relation}) - {contact.phone}
+                            </li>
+                          ))
+                        }
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-600 ml-4">No emergency contacts available</p>
+                    )}
+                  </div>
                 </div>
               </Card>
               
@@ -1253,7 +1541,7 @@ const AdminPortal = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NID</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {view === 'patients' ? 'Age' : 'Specialty'}
@@ -1265,7 +1553,7 @@ const AdminPortal = () => {
               {view === 'patients' ? 
                 filteredPatients.map((item: Patient) => (
                   <tr key={item.id} className="animate-fade-in hover:bg-gray-50 transition-colors duration-200">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{item.id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{item.nid}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.age}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
@@ -1310,9 +1598,10 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
     allergies?: string;
     specialty?: string;
     photoUrl?: string;
+    nid?: string;
   }>({ 
     name: '', 
-    password: 'password' 
+    password: '' 
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1328,6 +1617,7 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
     if (type === 'patients') {
       const newPatient: Patient = {
         id: `P${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+        nid: formData.nid || `${Math.floor(1000000000 + Math.random() * 9000000000)}`,
         name: formData.name,
         password: formData.password,
         age: parseInt(formData.age || '0'),
@@ -1352,6 +1642,7 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
     } else {
       const newDoctor: Doctor = {
         id: `D${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+        nid: formData.nid || `${Math.floor(1000000000 + Math.random() * 9000000000)}`,
         name: formData.name,
         password: formData.password,
         hospital: currentUser?.hospital || 'General Hospital',
@@ -1388,8 +1679,12 @@ const AddModal = ({ type, onSave, onCancel }: { type: string; onSave: () => void
           <input type="text" name="name" onChange={handleChange} placeholder="Full Name" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required />
         </div>
         <div className="col-span-1 md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700">National ID (NID)</label>
+          <input type="text" name="nid" onChange={handleChange} placeholder="National ID" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required />
+        </div>
+        <div className="col-span-1 md:col-span-2">
           <label className="block text-sm font-medium text-gray-700">Password</label>
-          <input type="text" name="password" onChange={handleChange} value={formData.password} placeholder="Password" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required />
+          <input type="password" name="password" onChange={handleChange} value={formData.password} placeholder="Password" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" required />
         </div>
         {type === 'patients' ? (
           <>
@@ -1442,8 +1737,10 @@ const EditModal = ({ item, onSave, onCancel }: {
       const updatedItem = {
         ...item.item,
         ...formData,
-        allergies: item?.type === 'patient' && (formData as Partial<Patient>).allergies ? 
-          (typeof (formData as Partial<Patient>).allergies === 'string' ? (formData as Partial<Patient>).allergies.split(',').map((a: string) => a.trim()) : []) : 
+        allergies: item?.type === 'patient' && (formData as Partial<Patient>).allergies ?
+          (Array.isArray((formData as Partial<Patient>).allergies) ? 
+            (formData as Partial<Patient>).allergies as string[] : 
+            String((formData as Partial<Patient>).allergies).split(',').map((a: string) => a.trim())) :
           (item?.item as Patient)?.allergies || []
       };
       onSave(updatedItem);
@@ -1473,11 +1770,51 @@ const EditModal = ({ item, onSave, onCancel }: {
             </div>
             <div className="col-span-1 md:col-span-2">
               <label className="block text-sm font-medium text-gray-700">Allergies (comma separated)</label>
-              <input type="text" name="allergies" value={Array.isArray((formData as Partial<Patient>).allergies) ? (formData as Partial<Patient>).allergies?.join(', ') : (formData as Partial<Patient>).allergies || ''} onChange={(e) => setFormData(prev => ({ ...prev, allergies: e.target.value }))} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+              <input 
+                type="text" 
+                name="allergies" 
+                value={
+                  Array.isArray((formData as Partial<Patient>).allergies) 
+                    ? (formData as Partial<Patient>).allergies?.join(', ') || ''
+                    : (formData as Partial<Patient>).allergies || ''
+                } 
+                onChange={(e) => setFormData(prev => ({ ...prev, allergies: e.target.value }))} 
+                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" 
+              />
             </div>
             <div className="col-span-1 md:col-span-2">
               <label className="block text-sm font-medium text-gray-700">Photo URL</label>
               <input type="text" name="photoUrl" value={formData.photoUrl || ''} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+            </div>
+            <div className="col-span-1 md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700">Upload Medical Report</label>
+              <input 
+                type="file" 
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    // Simulate file upload - in real app, upload to server
+                    const newReport = {
+                      id: `R${Date.now()}`,
+                      date: new Date().toISOString().split('T')[0],
+                      hospital: 'Current Hospital',
+                      title: file.name,
+                      description: 'Uploaded by admin',
+                      doctor: 'Admin Upload',
+                      url: URL.createObjectURL(file),
+                      status: 'completed' as const
+                    };
+                    
+                    if (item?.item && 'reports' in item.item) {
+                      const updatedReports = [...(item.item as Patient).reports, newReport];
+                      setFormData(prev => ({ ...prev, reports: updatedReports }));
+                    }
+                  }
+                }}
+                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" 
+              />
+              <p className="text-xs text-gray-500 mt-1">Accepted formats: PDF, JPG, PNG, DOC, DOCX</p>
             </div>
           </>
         ) : (
@@ -1503,163 +1840,212 @@ const EditModal = ({ item, onSave, onCancel }: {
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const features = [
-    {
-      icon: "🏥",
-      title: "Centralized Records",
-      description: "Access all your medical records in one secure place"
+  const context = useContext(ThemeAndLanguageContext);
+  const language = context?.language || 'en';
+
+  const content = {
+    en: {
+      hero: {
+        title: "Your Health Records",
+        subtitle: "One Click Away",
+        description: "Access your medical records, connect with doctors, and manage your health history securely and efficiently.",
+        getStarted: "Get Started",
+        emergency: "🚨 Emergency Access"
+      },
+      features: {
+        title: "Features",
+        subtitle: "Everything you need in one place",
+        items: [
+          {
+            icon: "🏥",
+            title: "Centralized Records",
+            description: "Access all your medical records in one secure place"
+          },
+          {
+            icon: "👨‍⚕️",
+            title: "Doctor Connect",
+            description: "Seamlessly connect with healthcare professionals"
+          },
+          {
+            icon: "🚨",
+            title: "Emergency Access",
+            description: "Quick access to critical medical information"
+          }
+        ]
+      },
+      cta: {
+        title: "Ready to get started?",
+        subtitle: "Create your account today.",
+        register: "Register Now"
+      },
+      stats: {
+        patients: "Patients Served",
+        doctors: "Healthcare Providers",
+        hospitals: "Partner Hospitals",
+        records: "Medical Records"
+      }
     },
-    {
-      icon: "👨‍⚕️",
-      title: "Doctor Connect",
-      description: "Seamlessly connect with healthcare professionals"
-    },
-    {
-      icon: "🚨",
-      title: "Emergency Access",
-      description: "Quick access to critical medical information"
+    ne: {
+      hero: {
+        title: "तपाईंको स्वास्थ्य रेकर्ड",
+        subtitle: "एक क्लिकमा",
+        description: "आफ्नो मेडिकल रेकर्डहरू पहुँच गर्नुहोस्, डाक्टरहरूसँग जडान गर्नुहोस्, र आफ्नो स्वास्थ्य इतिहास सुरक्षित र प्रभावकारी रूपमा व्यवस्थापन गर्नुहोस्।",
+        getStarted: "सुरु गर्नुहोस्",
+        emergency: "🚨 आपतकालीन पहुँच"
+      },
+      features: {
+        title: "सुविधाहरू",
+        subtitle: "सबै कुरा एकै ठाउँमा",
+        items: [
+          {
+            icon: "🏥",
+            title: "केन्द्रीकृत रेकर्डहरू",
+            description: "आफ्ना सबै मेडिकल रेकर्डहरू एक सुरक्षित ठाउँमा पहुँच गर्नुहोस्"
+          },
+          {
+            icon: "👨‍⚕️",
+            title: "डाक्टर जडान",
+            description: "स्वास्थ्यकर्मीहरूसँग सहज रूपमा जडान गर्नुहोस्"
+          },
+          {
+            icon: "🚨",
+            title: "आपतकालीन पहुँच",
+            description: "महत्वपूर्ण चिकित्सा जानकारीमा द्रुत पहुँच"
+          }
+        ]
+      },
+      cta: {
+        title: "सुरु गर्न तयार हुनुहुन्छ?",
+        subtitle: "आज नै आफ्नो खाता बनाउनुहोस्।",
+        register: "अहिले दर्ता गर्नुहोस्"
+      },
+      stats: {
+        patients: "सेवा प्राप्त बिरामीहरू",
+        doctors: "स्वास्थ्यकर्मीहरू",
+        hospitals: "साझेदार अस्पतालहरू",
+        records: "मेडिकल रेकर्डहरू"
+      }
     }
-  ];
+  };
+
+  const currentContent = content[language as keyof typeof content] || content.en;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="relative pt-6 pb-16 sm:pb-24">
-            <div className="mt-16 mx-auto max-w-7xl px-4 sm:mt-24">
-              <div className="text-center">
-                <h1 className="text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
-                  <span className="block">Your Health Records</span>
-                  <span className="block text-indigo-600">One Click Away</span>
-                </h1>
-                <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-                  Access your medical records, connect with doctors, and manage your health history securely and efficiently.
-                </p>
-                <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-                  <Button onClick={() => navigate('/login')} variant="primary" className="mb-2 sm:mb-0 sm:mr-2">
-                    Get Started
-                  </Button>
-                  <Button onClick={() => navigate('/emergency')} variant="danger">
-                    🚨 Emergency Access
-                  </Button>
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-green-600 min-h-screen flex items-center">
+        <div className="absolute inset-0 bg-black opacity-10"></div>
+        <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-12 sm:py-16 md:py-20 lg:py-24">
+            <div className="text-center">
+              <div className="mb-6 sm:mb-8">
+                <div className="mx-auto h-16 w-16 sm:h-20 sm:w-20 bg-white rounded-full flex items-center justify-center shadow-xl">
+                  <span className="text-2xl sm:text-3xl">🏥</span>
                 </div>
+              </div>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight font-extrabold text-white leading-tight">
+                <span className="block">{currentContent.hero.title}</span>
+                <span className="block text-blue-200 mt-2">{currentContent.hero.subtitle}</span>
+              </h1>
+              <p className="mt-4 sm:mt-6 max-w-md sm:max-w-xl lg:max-w-2xl mx-auto text-base sm:text-lg md:text-xl lg:text-2xl text-blue-100 leading-relaxed px-4">
+                {currentContent.hero.description}
+              </p>
+              <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center px-4">
+                <Button 
+                  onClick={() => navigate('/patient/login')} 
+                  variant="primary" 
+                  className="w-full sm:w-auto bg-blue-600 text-white hover:bg-blue-700 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-semibold rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105"
+                >
+                  {currentContent.hero.getStarted}
+                </Button>
+                <Button 
+                  onClick={() => navigate('/emergency')} 
+                  variant="danger"
+                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-semibold rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105"
+                >
+                  {currentContent.hero.emergency}
+                </Button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
+
       {/* Features Section */}
-      <div className="py-12 bg-white">
+      <div className="py-12 sm:py-16 lg:py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:text-center">
-            <h2 className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Features</h2>
-            <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-              Everything you need in one place
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-sm sm:text-base text-blue-600 font-semibold tracking-wide uppercase">{currentContent.features.title}</h2>
+            <p className="mt-2 text-2xl sm:text-3xl lg:text-4xl leading-tight font-extrabold tracking-tight text-gray-900">
+              {currentContent.features.subtitle}
             </p>
           </div>
 
-          <div className="mt-10">
-            <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
-              {features.map((feature, index) => (
-                <div key={index} className="pt-6">
-                  <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8 hover:shadow-lg transition-shadow">
-                    <div className="-mt-6">
-                      <div>
-                        <span className="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg text-3xl">
-                          {feature.icon}
-                        </span>
-                      </div>
-                      <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
-                        {feature.title}
-                      </h3>
-                      <p className="mt-5 text-base text-gray-500">
-                        {feature.description}
-                      </p>
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {currentContent.features.items.map((feature: any, index: number) => (
+              <div key={index} className="relative group">
+                <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 h-full">
+                  <div className="text-center">
+                    <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center text-2xl sm:text-3xl mb-4 sm:mb-6 shadow-lg">
+                      {feature.icon}
                     </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">
+                      {feature.title}
+                    </h3>
+                    <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+                      {feature.description}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        </div>
-      </div>
-
-      {/* Stats Section */}
-      <div className="bg-indigo-800">
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
-              Trusted by healthcare providers worldwide
-            </h2>
-          </div>
-          <dl className="mt-10 text-center sm:max-w-3xl sm:mx-auto sm:grid sm:grid-cols-3 sm:gap-8">
-            <div className="flex flex-col">
-              <dt className="order-2 mt-2 text-lg leading-6 font-medium text-indigo-200">
-                Hospitals
-              </dt>
-              <dd className="order-1 text-5xl font-extrabold text-white">100+</dd>
-            </div>
-            <div className="flex flex-col mt-10 sm:mt-0">
-              <dt className="order-2 mt-2 text-lg leading-6 font-medium text-indigo-200">
-                Doctors
-              </dt>
-              <dd className="order-1 text-5xl font-extrabold text-white">1000+</dd>
-            </div>
-            <div className="flex flex-col mt-10 sm:mt-0">
-              <dt className="order-2 mt-2 text-lg leading-6 font-medium text-indigo-200">
-                Patients
-              </dt>
-              <dd className="order-1 text-5xl font-extrabold text-white">50k+</dd>
-            </div>
-          </dl>
         </div>
       </div>
 
       {/* CTA Section */}
-      <div className="bg-white">
-        <div className="max-w-7xl mx-auto text-center py-12 px-4 sm:px-6 lg:py-16 lg:px-8">
-          <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-            <span className="block">Ready to get started?</span>
-            <span className="block">Create your account today.</span>
+      <div className="bg-gradient-to-r from-blue-600 to-green-600">
+        <div className="max-w-7xl mx-auto text-center py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            <span className="block">{currentContent.cta.title}</span>
+            <span className="block text-blue-200 mt-2">{currentContent.cta.subtitle}</span>
           </h2>
-          <div className="mt-8 flex justify-center">
-            <div className="inline-flex rounded-md shadow">
-              <Button onClick={() => navigate('/register')} variant="primary">
-                Register Now
-              </Button>
-            </div>
-            <div className="ml-3 inline-flex">
-              <Button onClick={() => navigate('/login')} variant="outline">
-                Learn More
-              </Button>
-            </div>
+          <div className="mt-6 sm:mt-8">
+            <Button 
+              onClick={() => navigate('/register')} 
+              variant="primary"
+              className="w-full sm:w-auto bg-blue-600 text-white hover:bg-blue-700 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-semibold rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105"
+            >
+              {currentContent.cta.register}
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Footer */}
       <footer className="bg-gray-50">
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 md:flex md:items-center md:justify-between lg:px-8">
-          <div className="flex justify-center space-x-6 md:order-2">
-            <a href="#" className="text-gray-400 hover:text-gray-500">
-              <span className="sr-only">Privacy Policy</span>
-              Privacy
-            </a>
-            <a href="#" className="text-gray-400 hover:text-gray-500">
-              <span className="sr-only">Terms of Service</span>
-              Terms
-            </a>
-            <a href="#" className="text-gray-400 hover:text-gray-500">
-              <span className="sr-only">Contact</span>
-              Contact
-            </a>
-          </div>
-          <div className="mt-8 md:mt-0 md:order-1">
-            <p className="text-center text-base text-gray-400">
-              © {new Date().getFullYear()} MedLife. All rights reserved.
-            </p>
+        <div className="max-w-7xl mx-auto py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col space-y-6 md:flex-row md:items-center md:justify-between md:space-y-0">
+            <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6 md:order-2">
+              <a href="#" className="text-center text-gray-400 hover:text-gray-500 transition-colors duration-200">
+                <span className="sr-only">Privacy Policy</span>
+                Privacy
+              </a>
+              <a href="#" className="text-center text-gray-400 hover:text-gray-500 transition-colors duration-200">
+                <span className="sr-only">Terms of Service</span>
+                Terms
+              </a>
+              <a href="#" className="text-center text-gray-400 hover:text-gray-500 transition-colors duration-200">
+                <span className="sr-only">Contact</span>
+                Contact
+              </a>
+            </div>
+            <div className="md:order-1">
+              <p className="text-center text-sm sm:text-base text-gray-400">
+                © {new Date().getFullYear()} MedLife. All rights reserved.
+              </p>
+            </div>
           </div>
         </div>
       </footer>
@@ -1670,7 +2056,7 @@ const LandingPage = () => {
 // --- Portals (Emergency View) ---
 const EmergencyPortal = () => {
   const navigate = useNavigate();
-  const [patientId, setPatientId] = useState('');
+  const [nid, setNid] = useState('');
   const [fingerprintData, setFingerprintData] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -1678,14 +2064,31 @@ const EmergencyPortal = () => {
   const { patients, setToast } = useMedLifeContext();
 
   const handleFingerprintScan = () => {
-    // Simulate fingerprint scanning
-    setFingerprintData('fingerprint_scanned_' + Date.now());
-    setToast({ message: 'Fingerprint scanned successfully!', type: 'success' });
+    setIsLoading(true);
+    setError('');
+    setFingerprintData('scanning...');
+
+    // Simulate fingerprint scanning and API call
+    setTimeout(() => {
+      const scannedFingerprintId = 'fingerprint_john_doe'; // Hardcoded for simulation
+      const patient = patients.find(p => p.fingerprintId === scannedFingerprintId);
+
+      if (patient) {
+        setSelectedPatient(patient);
+        setFingerprintData('✓ Fingerprint scanned');
+        setToast({ message: 'Patient found!', type: 'success' });
+      } else {
+        setError('No patient found with the scanned fingerprint.');
+        setFingerprintData('');
+        setSelectedPatient(null);
+      }
+      setIsLoading(false);
+    }, 1500);
   };
 
   const handleSearch = () => {
-    if (!patientId.trim()) {
-      setError('Please enter a Patient ID');
+    if (!nid.trim()) {
+      setError('Please enter a Patient NID');
       return;
     }
 
@@ -1694,7 +2097,7 @@ const EmergencyPortal = () => {
 
     // Simulate API call delay
     setTimeout(() => {
-      const patient = patients.find(p => p.id.toUpperCase() === patientId.toUpperCase());
+      const patient = patients.find(p => p.nid === nid);
       
       if (patient) {
         setSelectedPatient(patient);
@@ -1712,12 +2115,12 @@ const EmergencyPortal = () => {
       const confirmed = window.confirm('Are you sure you want to close this patient profile? This action cannot be undone.');
       if (confirmed) {
         setSelectedPatient(null);
-        setPatientId('');
+        setNid('');
         setFingerprintData('');
       }
     } else {
       setSelectedPatient(null);
-      setPatientId('');
+      setNid('');
       setFingerprintData('');
     }
   };
@@ -1733,18 +2136,18 @@ const EmergencyPortal = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-6">
             {/* Patient ID Search */}
             <div>
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Patient Identification</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient ID</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Patient NID</label>
                   <input
                     type="text"
-                    value={patientId}
-                    onChange={(e) => setPatientId(e.target.value)}
-                    placeholder="Enter Patient ID (e.g., P001)"
+                    value={nid}
+                    onChange={(e) => setNid(e.target.value)}
+                    placeholder="Enter Patient NID"
                     className="w-full p-3 border-2 border-red-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-lg"
                   />
                 </div>
@@ -1770,12 +2173,13 @@ const EmergencyPortal = () => {
                   </div>
                   <button
                     onClick={handleFingerprintScan}
-                    className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                    disabled={isLoading}
+                    className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
                   >
-                    Scan Fingerprint
+                    {isLoading && fingerprintData === 'scanning...' ? 'Scanning...' : 'Scan Fingerprint'}
                   </button>
-                  {fingerprintData && (
-                    <p className="text-sm text-green-600 mt-2">✓ Fingerprint scanned</p>
+                  {fingerprintData && fingerprintData !== 'scanning...' && (
+                    <p className="text-sm text-green-600 mt-2">{fingerprintData}</p>
                   )}
                 </div>
               </div>
@@ -1821,7 +2225,7 @@ const EmergencyPortal = () => {
                   )}
                   <div className="text-center sm:text-left">
                     <h3 className="text-2xl font-bold text-gray-800">{selectedPatient.name}</h3>
-                    <p className="text-gray-600">Patient ID: {selectedPatient.id}</p>
+                    <p className="text-gray-600">NID: {selectedPatient.nid}</p>
                     <div className="mt-2 flex flex-wrap justify-center sm:justify-start gap-2">
                       <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">Age: {selectedPatient.age}</span>
                       <span className="bg-red-100 text-red-800 text-sm font-medium px-2.5 py-0.5 rounded">Blood: {selectedPatient.bloodGroup.replace('+', ' positive')}</span>
@@ -1843,11 +2247,21 @@ const EmergencyPortal = () => {
                   </div>
 
                   <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h3 className="text-lg font-semibold text-blue-800 mb-3">📞 EMERGENCY CONTACT</h3>
-                    <div className="space-y-2">
-                      <p><strong>Contact:</strong> {selectedPatient.emergencyContact}</p>
-                      <p><strong>Relation:</strong> {selectedPatient.emergencyContactRelation}</p>
-                      <p><strong>Phone:</strong> {selectedPatient.emergencyContactPhone}</p>
+                    <h3 className="text-lg font-semibold text-blue-800 mb-3">📞 EMERGENCY CONTACTS</h3>
+                    <div className="space-y-3">
+                      {selectedPatient.emergencyContacts && selectedPatient.emergencyContacts.length > 0 ? (
+                        selectedPatient.emergencyContacts
+                          .filter(contact => contact.name && contact.name.trim()) // Only show contacts with names
+                          .map((contact, index) => (
+                            <div key={index} className="bg-white p-3 rounded border">
+                              <p><strong>Contact {index + 1}:</strong> {contact.name}</p>
+                              <p><strong>Relation:</strong> {contact.relation}</p>
+                              <p><strong>Phone:</strong> {contact.phone}</p>
+                            </div>
+                          ))
+                      ) : (
+                        <p className="text-gray-600">No emergency contacts available</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1904,7 +2318,152 @@ const EmergencyPortal = () => {
 
 
 
-const LoginPage = () => {
+// Patient Login Page
+const PatientLoginPage = () => {
+  const { login, setToast } = useMedLifeContext();
+  const [formData, setFormData] = useState({
+    nid: '',
+    password: ''
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    setTimeout(() => {
+      const success = login(formData.nid, formData.password, 'patient');
+      if (success) {
+        navigate('/patient');
+      } else {
+        setToast({ message: 'Invalid credentials', type: 'error' });
+      }
+      setIsLoading(false);
+    }, 500);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
+        {/* Logo/Brand Section */}
+        <div className="text-center mb-8">
+          <div className="mx-auto h-16 w-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4 shadow-lg">
+            <span className="text-2xl font-bold text-white">🏥</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">MedLife CMS</h1>
+          <p className="text-gray-600">Patient Portal Access</p>
+        </div>
+
+        {/* Login Card */}
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h2>
+            <p className="text-gray-600">Sign in to access your medical records</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="nid" className="block text-sm font-medium text-gray-700 mb-2">
+                  National ID (NID)
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400 text-sm">🆔</span>
+                  </div>
+                  <input
+                    id="nid"
+                    name="nid"
+                    type="text"
+                    required
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+                    placeholder="Enter your National ID"
+                    value={formData.nid}
+                    onChange={(e) => setFormData(prev => ({ ...prev, nid: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400 text-sm">🔒</span>
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+                    placeholder="Enter your password"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                  Remember me
+                </label>
+              </div>
+              <button
+                type="button"
+                className="text-sm text-blue-600 hover:text-blue-500 font-medium transition-colors duration-200"
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white font-semibold rounded-xl shadow-lg transform transition-all duration-200 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Signing in...
+                </div>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-gray-600">
+              Don't have an account?{' '}
+              <button 
+                onClick={() => navigate('/register')} 
+                className="font-semibold text-blue-600 hover:text-blue-500 transition-colors duration-200"
+              >
+                Create Account
+              </button>
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+// Doctor Login Page
+const DoctorLoginPage = () => {
   const { login, setToast } = useMedLifeContext();
   const [formData, setFormData] = useState({
     id: '',
@@ -1917,24 +2476,12 @@ const LoginPage = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Determine role from ID prefix
-    const role = formData.id[0] === 'P' ? 'patient' 
-               : formData.id[0] === 'D' ? 'doctor'
-               : formData.id[0] === 'A' ? 'admin'
-               : null;
-
-    if (!role) {
-      setToast({ message: 'Invalid ID format', type: 'error' });
-      setIsLoading(false);
-      return;
-    }
-
     setTimeout(() => {
-      const success = login(formData.id, formData.password, role);
+      const success = login(formData.id, formData.password, 'doctor');
       if (success) {
-        navigate(`/${role}`);
+        navigate('/doctor');
       } else {
-        // Login failed
+        setToast({ message: 'Invalid doctor credentials', type: 'error' });
       }
       setIsLoading(false);
     }, 500);
@@ -1942,30 +2489,24 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+      <div className="max-w-md w-full space-y-8 text-center">
         <div className="text-center">
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Doctor Login</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Or{' '}
-            <button 
-              onClick={() => navigate('/register')} 
-              className="font-medium text-indigo-600 hover:text-indigo-500"
-            >
-              register for a new account
-            </button>
+            Access your doctor portal
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label htmlFor="id" className="sr-only">ID</label>
+              <label htmlFor="id" className="sr-only">Doctor ID</label>
               <input
                 id="id"
                 name="id"
                 type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="User ID"
+                placeholder="Doctor ID"
                 value={formData.id}
                 onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
               />
@@ -2010,11 +2551,92 @@ const LoginPage = () => {
   );
 };
 
+// Admin Login Page  
+const AdminLoginPage = () => {
+  const { login, setToast } = useMedLifeContext();
+  const [formData, setFormData] = useState({
+    id: '',
+    password: ''
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    setTimeout(() => {
+      const success = login(formData.id, formData.password, 'admin');
+      if (success) {
+        navigate('/admin');
+      } else {
+        setToast({ message: 'Invalid admin credentials', type: 'error' });
+      }
+      setIsLoading(false);
+    }, 500);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 text-center">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Admin Login</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Access administrative portal
+          </p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="id" className="sr-only">Admin ID</label>
+              <input
+                id="id"
+                name="id"
+                type="text"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Admin ID"
+                value={formData.id}
+                onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+                value={formData.password}
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div>
+            <Button
+              type="submit"
+              variant="primary"
+              className="group relative w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const RegistrationPage = () => {
   const navigate = useNavigate();
   const { addPatient } = useMedLifeContext();
   const [formData, setFormData] = useState({
     name: '',
+    nid: '',
     password: '',
     age: '',
     bloodGroup: '',
@@ -2028,9 +2650,10 @@ const RegistrationPage = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Create new patient object
+    // Create new patient object using NID as primary identifier
     const newPatient: Patient = {
-      id: `P${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+      id: formData.nid, // Use NID as the primary ID
+      nid: formData.nid,
       name: formData.name,
       password: formData.password,
       age: parseInt(formData.age),
@@ -2089,6 +2712,19 @@ const RegistrationPage = () => {
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="nid" className="block text-sm font-medium text-gray-700">National ID (NID)</label>
+              <input
+                id="nid"
+                name="nid"
+                type="text"
+                required
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={formData.nid}
+                onChange={(e) => setFormData(prev => ({ ...prev, nid: e.target.value }))}
               />
             </div>
             
@@ -2210,11 +2846,13 @@ const App = () => {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/admin" element={<ProtectedRoute role="admin"><AdminPortal /></ProtectedRoute>} />
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/doctor" element={<ProtectedRoute><DoctorPortal /></ProtectedRoute>} />
+              <Route path="/admin/login" element={<AdminLoginPage />} />
+              <Route path="/doctor" element={<ProtectedRoute role="doctor"><DoctorPortal /></ProtectedRoute>} />
+              <Route path="/doctor/login" element={<DoctorLoginPage />} />
               <Route path="/emergency" element={<EmergencyPortal />} />
               <Route path="/patient" element={<ProtectedRoute><PatientPortal /></ProtectedRoute>} />
-              <Route path="/login" element={<LoginPage />} />
+              <Route path="/patient/login" element={<PatientLoginPage />} />
+              <Route path="/login" element={<PatientLoginPage />} />
               <Route path="/register" element={<RegistrationPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -2226,4 +2864,3 @@ const App = () => {
 };
 
 export default App;
-
